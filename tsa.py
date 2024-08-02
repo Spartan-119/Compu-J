@@ -1,97 +1,69 @@
-# import the needed libraries
+import os
 import pandas as pd
-import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
-from statsmodels.tsa.statespace.sarimax import SARIMAX
+from scipy.signal import find_peaks
 from statsmodels.tsa.seasonal import seasonal_decompose
 
+# Create necessary directories
+if not os.path.exists("Analysis"):
+    os.makedirs("Analysis")
 
+# Function to perform the analyses
+def analyze_song(file_path, song_name):
+    # Read the data
+    df = pd.read_csv(file_path)
+    df['Date'] = pd.to_datetime(df['Date'])
+    
+    # Create a directory for the song
+    song_dir = os.path.join("Analysis", song_name)
+    if not os.path.exists(song_dir):
+        os.makedirs(song_dir)
+    
+    # Popularity Trend Analysis
+    df_trend = df.groupby(df['Date'].dt.date).size().reset_index()
+    df_trend.columns = ['Date', 'Count']
+    df_trend['Date'] = pd.to_datetime(df_trend['Date'])
+    df_trend.set_index('Date', inplace=True)
+    
+    plt.figure(figsize=(10, 6))
+    df_trend['Count'].plot(title=f'Popularity Trend for {song_name}', xlabel='Date', ylabel='Number of Queries')
+    plt.savefig(os.path.join(song_dir, 'popularity_trend.png'))
+    plt.close()
+    
+    # Peak Detection
+    peaks, _ = find_peaks(df_trend['Count'], distance=1)
+    plt.figure(figsize=(10, 6))
+    plt.plot(df_trend.index, df_trend['Count'], label='Query Count')
+    plt.plot(df_trend.index[peaks], df_trend['Count'].iloc[peaks], "x", label='Peaks')
+    plt.title(f'Peak Detection for {song_name}')
+    plt.xlabel('Date')
+    plt.ylabel('Number of Queries')
+    plt.legend()
+    plt.savefig(os.path.join(song_dir, 'peak_detection.png'))
+    plt.close()
+    
+    # Seasonal Patterns
+    df_seasonal = df_trend['Count'].resample('D').sum()
+    df_seasonal = df_seasonal.asfreq('D').fillna(0)
+    
+    # Check if we have enough data for seasonal decomposition
+    if len(df_seasonal) > 2:  # Adjust this threshold as needed
+        decomposition = seasonal_decompose(df_seasonal, model='additive', period=7)  # Assuming weekly seasonality
+        plt.figure(figsize=(10, 6))
+        decomposition.seasonal.plot(title=f'Seasonal Patterns for {song_name}', xlabel='Date', ylabel='Seasonal Component')
+        plt.savefig(os.path.join(song_dir, 'seasonal_patterns.png'))
+        plt.close()
+    else:
+        print(f"Not enough data for seasonal decomposition for {song_name}")
 
-# Load the dataset
-df = pd.read_csv('E:\Experimental Projects\Compu-J\data\song18.csv')
+# Analyze each song file
+data_folder = 'data'
+song_numbers = list(range(1, 15)) + list(range(16, 22))  # Skipping 15
 
-# Display the first few rows of the dataset
-print(df.head())
+for i in song_numbers:
+    file_name = f'song{i:02d}.csv'
+    file_path = os.path.join(data_folder, file_name)
+    analyze_song(file_path, f'song{i:02d}')
 
-# Convert the 'Date' column to datetime format
-df['Date'] = pd.to_datetime(df['Date'])
-
-# If needed, convert the 'Offset' column from scientific notation to float
-df['Offset'] = df['Offset'].astype(float)
-
-# Display the data types to ensure they are correct
-print(df.dtypes)
-
-# some basic EDA
-print(df.describe())
-
-# some visualisation
-plt.figure(figsize = (10, 6))
-sns.histplot(df['Offset'], bins = 50, kde = True)
-plt.title('Distribution of Offsets')
-plt.xlabel('Offset (seconds)')
-plt.ylabel('Frequency')
-plt.show()
-
-# Plot the number of Shazam queries over time
-plt.figure(figsize=(10, 6))
-df['Date'].value_counts().sort_index().plot()
-plt.title('Number of Shazam Queries Over Time')
-plt.xlabel('Date')
-plt.ylabel('Number of Queries')
-plt.show()
-
-# Time Series Analysis
-# Aggregate the number of queries by date
-time_series = df['Date'].value_counts().sort_index()
-
-# Plot the time series
-plt.figure(figsize=(10, 6))
-time_series.plot()
-plt.title('Number of Shazam Queries Over Time')
-plt.xlabel('Date')
-plt.ylabel('Number of Queries')
-plt.show()
-
-# advanced analysis
-
-# Decompose the time series
-decomposition = seasonal_decompose(time_series, model='additive', period=30)
-decomposition.plot()
-plt.show()
-
-
-########################
-# using SARIMAX
-import pandas as pd
-import numpy as np
-import matplotlib.pyplot as plt
-
-
-# Assuming time_series is your prepared time series data
-# Convert to DataFrame if it's a Series
-if isinstance(time_series, pd.Series):
-    time_series = time_series.to_frame(name='y')
-
-# Fit the SARIMA model
-model = SARIMAX(time_series, order=(1, 1, 1), seasonal_order=(1, 1, 1, 12))
-results = model.fit()
-
-# Make predictions
-forecast = results.get_forecast(steps=30)
-forecast_ci = forecast.conf_int()
-
-# Plot the results
-plt.figure(figsize=(12, 6))
-plt.plot(time_series.index, time_series, label='Observed')
-plt.plot(forecast.predicted_mean.index, forecast.predicted_mean, color='r', label='Forecast')
-plt.fill_between(forecast_ci.index, forecast_ci.iloc[:, 0], forecast_ci.iloc[:, 1], color='r', alpha=0.1)
-plt.title('SARIMA Forecast of Shazam Queries')
-plt.xlabel('Date')
-plt.ylabel('Number of Queries')
-plt.legend()
-plt.show()
-
-# Print the forecast
-print(forecast.predicted_mean)
+print("Analysis completed and plots saved.")
