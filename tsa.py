@@ -5,7 +5,7 @@ import seaborn as sns
 from scipy.signal import find_peaks
 from statsmodels.tsa.seasonal import seasonal_decompose
 
-# Create necessary directories
+# Creating the Analysis folder where I will add the output of each song's analysis
 if not os.path.exists("Analysis"):
     os.makedirs("Analysis")
 
@@ -20,7 +20,7 @@ def analyze_song(file_path, song_name):
     if not os.path.exists(song_dir):
         os.makedirs(song_dir)
     
-    # Popularity Trend Analysis
+    # 1. Popularity Trend Analysis
     df_trend = df.groupby(df['Date'].dt.date).size().reset_index()
     df_trend.columns = ['Date', 'Count']
     df_trend['Date'] = pd.to_datetime(df_trend['Date'])
@@ -31,7 +31,7 @@ def analyze_song(file_path, song_name):
     plt.savefig(os.path.join(song_dir, 'popularity_trend.png'))
     plt.close()
     
-    # Peak Detection
+    # 2. Peak Detection
     peaks, _ = find_peaks(df_trend['Count'], distance=1)
     plt.figure(figsize=(10, 6))
     plt.plot(df_trend.index, df_trend['Count'], label='Query Count')
@@ -43,11 +43,11 @@ def analyze_song(file_path, song_name):
     plt.savefig(os.path.join(song_dir, 'peak_detection.png'))
     plt.close()
     
-    # Seasonal Patterns
+    # 3. Seasonal Patterns
     df_seasonal = df_trend['Count'].resample('D').sum()
     df_seasonal = df_seasonal.asfreq('D').fillna(0)
     
-    # Check if we have enough data for seasonal decomposition
+    # adding this checker to make sure we have sufficient data to perform seasonal decompose
     if len(df_seasonal) > 2:  # Adjust this threshold as needed
         decomposition = seasonal_decompose(df_seasonal, model='additive', period=7)  # Assuming weekly seasonality
         plt.figure(figsize=(10, 6))
@@ -57,7 +57,7 @@ def analyze_song(file_path, song_name):
     else:
         print(f"Not enough data for seasonal decomposition for {song_name}")
 
-# Analyze each song file
+# main starting point
 data_folder = 'data'
 song_numbers = list(range(1, 15)) + list(range(16, 22))  # Skipping 15
 
